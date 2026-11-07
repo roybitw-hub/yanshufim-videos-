@@ -73,35 +73,43 @@ const SEMO=()=>SEM.find(x=>x.id===sem)||SEM.at(-1);let COURSES=SEMO().courses;
 const $=s=>document.querySelector(s);const fmt=s=>{s=Math.round(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let cur=store.get('course','ob');if(!COURSES.find(c=>c.id===cur))cur=(COURSES[0]||{}).id;
-const total=l=>(l.parts||[]).reduce((a,p)=>a+p[2],0);
-function prog(l){if(!l.parts)return 0;const pr=store.get('p-'+l.id,{});let w=0;l.parts.forEach((p,i)=>w+=Math.min(p[2],pr[i]||0));return w/total(l)}
+// lesson = one continuous video (file+dur, optional chapters [[name,startSec]]); legacy "parts" are played back-to-back as one timeline
+const segs=l=>{if(l.file)return [{src:l.file,s:0,d:l.dur}];let t=0;return (l.parts||[]).map(p=>{const o={src:p[1],s:t,d:p[2]};t+=p[2];return o})};
+const chaps=l=>{if(l.chapters)return l.chapters;if(l.parts&&l.parts.length>1){let t=0;return l.parts.map(p=>{const r=[p[0],t];t+=p[2];return r})}return []};
+const total=l=>segs(l).reduce((a,x)=>a+x.d,0);
+const playable=l=>!!(l.file||l.parts);
+function prog(l){if(!playable(l))return 0;const pr=store.get('q-'+l.id,{max:0});return Math.min(1,(pr.max||0)/total(l))}
 function renderHome(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().name+' · סיכומי שיעורים מונפשים';
  $('#sems').style.display=SEM.length>1?'flex':'none';$('#sems').innerHTML=SEM.map(x=>`<button class="tab ${x.id===sem?'on':''}" style="--c:#b5a8ff" data-s="${x.id}">${x.name}</button>`).join('');
  $('#sems').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{sem=b.dataset.s;store.set('sem',sem);cur=(SEMO().courses[0]||{}).id;renderHome()});
  $('#tabs').innerHTML=COURSES.map(c=>`<button class="tab ${c.id===cur?'on':''}" style="--c:${c.c}" data-id="${c.id}"><i></i>${c.name}</button>`).join('');
  $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{cur=b.dataset.id;store.set('course',cur);renderHome()});
  const c=COURSES.find(x=>x.id===cur)||COURSES[0];document.documentElement.style.setProperty('--c',c.c);
- const items=c.lessons.map(l=>{const p=prog(l);const sub=l.sub||[l.date,l.parts&&fmt(total(l))+' דק׳',l.parts&&l.parts.length>1&&l.parts.length+' חלקים'].filter(Boolean).join(' · ');
-  const th=l.poster?`<div class="thumb"><img src="${l.poster}" alt="">${l.parts?`<em>${fmt(total(l))}</em>`:''}<div class="bar" style="width:${(p*100).toFixed(0)}%"></div></div>`:`<div class="thumb" style="display:flex;align-items:center;justify-content:center;background:var(--panel2);font-size:30px">▶</div>`;
+ const items=c.lessons.map(l=>{const p=prog(l),ok=playable(l),nc=chaps(l).length;const sub=l.sub||[l.date,ok&&fmt(total(l))+' דק׳',nc>1&&nc+' פרקים'].filter(Boolean).join(' · ');
+  const th=l.poster?`<div class="thumb"><img src="${l.poster}" alt="">${ok?`<em>${fmt(total(l))}</em>`:''}<div class="bar" style="width:${(p*100).toFixed(0)}%"></div></div>`:`<div class="thumb" style="display:flex;align-items:center;justify-content:center;background:var(--panel2);font-size:30px">▶</div>`;
   const inner=`${th}<div class="meta"><div class="n">${l.n}${l.tag?`<span class="tag">${l.tag}</span>`:''}</div><div class="t">${l.title}</div><div class="s">${sub}</div></div>`;
   return l.ext?`<a class="card" href="${l.ext}" target="_blank" rel="noopener">${inner}</a>`:`<div class="card" data-id="${l.id}">${inner}</div>`}).join('');
  $('#course').innerHTML=`<div class="course-head"><b>${c.name}</b><span>${c.lessons.length} סרטונים</span></div><div class="list">${items||'<div class="empty">עוד אין סרטונים בקורס הזה</div>'}</div>`;
  $('#course').querySelectorAll('.card[data-id]').forEach(el=>el.onclick=()=>{location.hash=el.dataset.id});
 }
-const v=$('#v');let L=null,P=0,rate=store.get('rate',1);
-function openLesson(id){let c,l;for(const cc of SEM.flatMap(x=>x.courses)){const f=cc.lessons.find(x=>x.id===id);if(f){c=cc;l=f}}if(!l||!l.parts){showHome();return}
- L=l;document.documentElement.style.setProperty('--c',c.c);$('#home').style.display='none';$('#player').style.display='block';
+const v=$('#v');let L=null,SG=[],K=-1,CH=[],rate=store.get('rate',1),pending=null;
+const gt=()=>K<0?0:SG[K].s+(v.currentTime||0);
+function openLesson(id){let c,l;for(const cc of SEM.flatMap(x=>x.courses)){const f=cc.lessons.find(x=>x.id===id);if(f){c=cc;l=f}}if(!l||!playable(l)){showHome();return}
+ L=l;SG=segs(l);CH=chaps(l);K=-1;document.documentElement.style.setProperty('--c',c.c);$('#home').style.display='none';$('#player').style.display='block';
  $('#pt').textContent=l.n+' · '+l.title;$('#ps').textContent=c.name+(l.date?' · '+l.date:'')+' · '+fmt(total(l))+' דק׳';
  $('#links').innerHTML=(l.links||[]).map(([t,u])=>`<a href="${u}" target="_blank" rel="noopener">📄 ${t}</a>`).join('');
- const last=store.get('last-'+l.id,0);load(last,false);renderChap();window.scrollTo(0,0)}
-function load(i,play){P=i;const pr=store.get('p-'+L.id,{});v.poster=L.poster||'';v.src=L.parts[i][1];v.playbackRate=rate;
- v.onloadedmetadata=()=>{const t=pr[i]||0;if(t>3&&t<L.parts[i][2]-3)v.currentTime=t;v.playbackRate=rate};
- if(play)v.play().catch(()=>{});store.set('last-'+L.id,i);renderChap()}
-function renderChap(){if(!L)return;const pr=store.get('p-'+L.id,{});
- $('#chap').innerHTML=L.parts.length<2?'':L.parts.map((p,i)=>`<div class="ch ${i===P?'on':''}" data-i="${i}"><div class="k">${i+1}</div><div class="x">${p[0]}</div>${(pr[i]||0)>p[2]-5?'<span class="done">✓</span>':''}<div class="d">${fmt(p[2])}</div></div>`).join('');
- $('#chap').querySelectorAll('.ch').forEach(el=>el.onclick=()=>load(+el.dataset.i,true))}
-let lastSave=0;v.ontimeupdate=()=>{if(!L)return;const now=Date.now();if(now-lastSave<2000)return;lastSave=now;const pr=store.get('p-'+L.id,{});pr[P]=Math.max(pr[P]||0,v.currentTime);store.set('p-'+L.id,pr)};
-v.onended=()=>{const pr=store.get('p-'+L.id,{});pr[P]=L.parts[P][2];store.set('p-'+L.id,pr);if(P<L.parts.length-1)load(P+1,true);else renderChap()};
+ v.poster=l.poster||'';const pr=store.get('q-'+l.id,{pos:0});const pos=(pr.pos>3&&pr.pos<total(l)-5)?pr.pos:0;seekTo(pos,false);renderChap();window.scrollTo(0,0)}
+function seekTo(g,play){let k=SG.findIndex(x=>g<x.s+x.d-0.05);if(k<0)k=SG.length-1;const off=Math.max(0,g-SG[k].s);
+ if(k!==K){K=k;pending=off;v.src=SG[k].src;v.playbackRate=rate}else{v.currentTime=off}
+ if(play)v.play().catch(()=>{})}
+v.onloadedmetadata=()=>{v.playbackRate=rate;if(pending!=null){if(pending>0.2)v.currentTime=pending;pending=null}};
+function activeChap(){const g=gt();let a=0;CH.forEach((c,i)=>{if(g>=c[1]-0.3)a=i});return a}
+function renderChap(){if(!L)return;const pr=store.get('q-'+L.id,{max:0}),a=activeChap();
+ $('#chap').innerHTML=CH.length<2?'':CH.map((c,i)=>{const end=i<CH.length-1?CH[i+1][1]:total(L);return `<div class="ch ${i===a?'on':''}" data-i="${i}"><div class="k">${i+1}</div><div class="x">${c[0]}</div>${(pr.max||0)>=end-3?'<span class="done">✓</span>':''}<div class="d">${fmt(c[1])}</div></div>`}).join('');
+ $('#chap').querySelectorAll('.ch').forEach(el=>el.onclick=()=>{seekTo(CH[+el.dataset.i][1],true);setTimeout(renderChap,50)})}
+let lastSave=0,lastA=-1;v.ontimeupdate=()=>{if(!L||K<0)return;const a=activeChap();if(a!==lastA){lastA=a;renderChap()}
+ const now=Date.now();if(now-lastSave<2000)return;lastSave=now;const pr=store.get('q-'+L.id,{pos:0,max:0});const g=gt();pr.pos=g;pr.max=Math.max(pr.max||0,g);store.set('q-'+L.id,pr)};
+v.onended=()=>{if(!L)return;if(K<SG.length-1){seekTo(SG[K+1].s,true);return}const pr=store.get('q-'+L.id,{});pr.pos=0;pr.max=total(L);store.set('q-'+L.id,pr);renderChap()};
 [1,1.25,1.5,1.75].forEach(r=>{const b=document.createElement('button');b.dir='ltr';b.textContent=r+'×';b.onclick=()=>{rate=r;v.playbackRate=r;store.set('rate',r);mark()};$('#speed').appendChild(b)});
 function mark(){[...$('#speed').querySelectorAll('button')].forEach(b=>b.classList.toggle('on',parseFloat(b.textContent)===rate))}mark();
 function showHome(){v.pause();L=null;$('#player').style.display='none';$('#home').style.display='block';renderHome()}
