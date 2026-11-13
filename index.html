@@ -15,6 +15,7 @@ header h1{font-size:26px;font-weight:800;margin:6px 0 2px}
 header p{margin:0;color:var(--dim);font-size:14px}
 .tabs{display:flex;gap:8px;overflow-x:auto;padding:16px 0 6px;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
+@media (min-width:600px){.tabs{flex-wrap:wrap;overflow:visible}}
 .tab{flex:none;border:2px solid var(--line);background:var(--panel);color:var(--txt);border-radius:999px;padding:9px 16px;font:600 15px Heebo,sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px}
 .tab i{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .tab.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,var(--panel))}
@@ -84,6 +85,7 @@ function renderHome(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().na
  $('#sems').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{sem=b.dataset.s;store.set('sem',sem);cur=(SEMO().courses[0]||{}).id;renderHome()});
  $('#tabs').innerHTML=COURSES.map(c=>`<button class="tab ${c.id===cur?'on':''}" style="--c:${c.c}" data-id="${c.id}"><i></i>${c.name}</button>`).join('');
  $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{cur=b.dataset.id;store.set('course',cur);renderHome()});
+ {const on=$('#tabs .tab.on');if(on){const T=$('#tabs');T.scrollLeft+=on.getBoundingClientRect().left-T.getBoundingClientRect().left-(T.clientWidth-on.offsetWidth)/2}}
  const c=COURSES.find(x=>x.id===cur)||COURSES[0];document.documentElement.style.setProperty('--c',c.c);
  const items=c.lessons.map(l=>{const p=prog(l),ok=playable(l),nc=chaps(l).length;const sub=l.sub||[l.date,ok&&fmt(total(l))+' דק׳',nc>1&&nc+' פרקים'].filter(Boolean).join(' · ');
   const th=l.poster?`<div class="thumb"><img src="${l.poster}" alt="">${ok?`<em>${fmt(total(l))}</em>`:''}<div class="bar" style="width:${(p*100).toFixed(0)}%"></div></div>`:`<div class="thumb" style="display:flex;align-items:center;justify-content:center;background:var(--panel2);font-size:30px">▶</div>`;
