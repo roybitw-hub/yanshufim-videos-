@@ -23,7 +23,8 @@ header p{margin:0;color:var(--dim);font-size:14px}
 .arr{flex:none;width:34px;height:34px;margin-top:10px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:800 18px Heebo,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .arr:disabled{opacity:.3;cursor:default}.arr[hidden]{display:none}
 /* courses grid */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:14px}
+.grid{margin-top:6px}.grp h2{font-size:15px;font-weight:800;color:var(--dim);margin:18px 2px 10px;letter-spacing:.3px}
+.gtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .tile{position:relative;text-align:start;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 14px 14px;cursor:pointer;color:inherit;font:inherit;overflow:hidden;min-height:128px;display:flex;flex-direction:column;gap:6px}
 .tile::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:var(--c)}
 .tile:active{transform:scale(.98)}
@@ -69,7 +70,7 @@ video{width:100%;aspect-ratio:16/9;background:#000;border-radius:16px;display:bl
  <div id="grid" class="grid"></div>
  <div id="cview">
   <button class="back" id="allc">→ כל הקורסים</button>
-  <div class="tabrow"><button class="arr" id="aprev" aria-label="הקודם">›</button><nav class="tabs" id="tabs"></nav><button class="arr" id="anext" aria-label="הבא">‹</button></div>
+  <div class="tabrow"><button class="arr" id="aprev" aria-label="הקודם">‹</button><nav class="tabs" id="tabs"></nav><button class="arr" id="anext" aria-label="הבא">›</button></div>
   <div id="course"></div>
  </div>
 </section>
@@ -99,8 +100,12 @@ function prog(l){if(!playable(l))return 0;const pr=store.get('q-'+l.id,{max:0});
 function renderGrid(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().name+' · סיכומי שיעורים מונפשים';
  $('#sems').style.display=SEM.length>1?'flex':'none';$('#sems').innerHTML=SEM.map(x=>`<button class="tab ${x.id===sem?'on':''}" style="--c:#b5a8ff" data-s="${x.id}">${x.name}</button>`).join('');
  $('#sems').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{sem=b.dataset.s;store.set('sem',sem);cur=(SEMO().courses[0]||{}).id;renderGrid()});
- $('#grid').innerHTML=COURSES.map(c=>{const n=c.lessons.length,pl=c.lessons.filter(playable),p=pl.length?pl.reduce((a,l)=>a+prog(l),0)/pl.length:0;
-  return `<button class="tile" style="--c:${c.c}" data-id="${c.id}"><span class="dot"></span><b>${c.name}</b><span class="cnt"><strong>${n}</strong>${n===1?'שיעור':'שיעורים'}</span><span class="pb"><i style="width:${(p*100).toFixed(0)}%"></i></span></button>`}).join('');
+ const GROUPS=[['פרונטלים',['ob','dm']],['זום',['cm','ec']],['מתוקשבים',['lb','kn']],['אנגלית',['en']]];
+ const used=new Set(GROUPS.flatMap(g=>g[1]));const rest=COURSES.filter(c=>!used.has(c.id)).map(c=>c.id);
+ const tile=c=>{const n=c.lessons.length,pl=c.lessons.filter(playable),p=pl.length?pl.reduce((a,l)=>a+prog(l),0)/pl.length:0;
+  return `<button class="tile" style="--c:${c.c}" data-id="${c.id}"><span class="dot"></span><b>${c.name}</b><span class="cnt"><strong>${n}</strong>${n===1?'שיעור':'שיעורים'}</span><span class="pb"><i style="width:${(p*100).toFixed(0)}%"></i></span></button>`};
+ $('#grid').innerHTML=[...GROUPS,...(rest.length?[['קורסים נוספים',rest]]:[])].map(([g,ids])=>{const cs=ids.map(id=>COURSES.find(c=>c.id===id)).filter(Boolean);
+  return cs.length?`<section class="grp"><h2>${g}</h2><div class="gtiles">${cs.map(tile).join('')}</div></section>`:''}).join('');
  $('#grid').querySelectorAll('.tile').forEach(b=>b.onclick=()=>{location.hash='course-'+b.dataset.id});
  $('#grid').style.display='';$('#cview').style.display='none';$('#sems').style.display=SEM.length>1?'flex':'none'}
 function syncArrows(){const T=$('#tabs'),max=T.scrollWidth-T.clientWidth,x=Math.abs(T.scrollLeft);const over=max>2;$('#aprev').hidden=$('#anext').hidden=!over;$('#aprev').disabled=x<2;$('#anext').disabled=x>max-2}
