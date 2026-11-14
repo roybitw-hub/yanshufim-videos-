@@ -18,6 +18,19 @@ header p{margin:0;color:var(--dim);font-size:14px}
 .tab{flex:none;border:2px solid var(--line);background:var(--panel);color:var(--txt);border-radius:999px;padding:9px 16px;font:600 15px Heebo,sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px}
 .tab i{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .tab.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,var(--panel))}
+/* course tab arrows */
+.tabrow{display:flex;align-items:center;gap:6px}.tabrow .tabs{flex:1;min-width:0}
+.arr{flex:none;width:34px;height:34px;margin-top:10px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:800 18px Heebo,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.arr:disabled{opacity:.3;cursor:default}.arr[hidden]{display:none}
+/* courses grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:14px}
+.tile{position:relative;text-align:start;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 14px 14px;cursor:pointer;color:inherit;font:inherit;overflow:hidden;min-height:128px;display:flex;flex-direction:column;gap:6px}
+.tile::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:var(--c)}
+.tile:active{transform:scale(.98)}
+.tile .dot{width:12px;height:12px;border-radius:50%;background:var(--c)}
+.tile b{font-size:17px;line-height:1.3}
+.tile .cnt{margin-top:auto;color:var(--dim);font-size:13px}.tile .cnt strong{color:var(--c);font-size:22px;font-weight:800;margin-inline-end:4px}
+.tile .pb{height:4px;border-radius:4px;background:var(--panel2);overflow:hidden}.tile .pb i{display:block;height:100%;background:var(--c)}
 .course-head{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
 .course-head b{font-size:20px}.course-head span{color:var(--dim);font-size:14px}
 .list{display:grid;gap:12px}
@@ -53,11 +66,15 @@ video{width:100%;aspect-ratio:16/9;background:#000;border-radius:16px;display:bl
 <section id="home">
  <header><h1>🦉 ינשופים</h1><p id="semname"></p></header>
  <nav class="tabs sems" id="sems"></nav>
- <nav class="tabs" id="tabs"></nav>
- <div id="course"></div>
+ <div id="grid" class="grid"></div>
+ <div id="cview">
+  <button class="back" id="allc">→ כל הקורסים</button>
+  <div class="tabrow"><button class="arr" id="aprev" aria-label="הקודם">›</button><nav class="tabs" id="tabs"></nav><button class="arr" id="anext" aria-label="הבא">‹</button></div>
+  <div id="course"></div>
+ </div>
 </section>
 <section id="player">
- <button class="back" id="back">→ חזרה לכל הסרטונים</button>
+ <button class="back" id="back">→ חזרה לקורס</button>
  <video id="v" controls playsinline preload="metadata"></video>
  <div class="ptitle" id="pt"></div><div class="psub" id="ps"></div>
  <div class="ctrl" id="speed"><span>מהירות:</span></div>
@@ -79,11 +96,22 @@ const chaps=l=>{if(l.chapters)return l.chapters;if(l.parts&&l.parts.length>1){le
 const total=l=>segs(l).reduce((a,x)=>a+x.d,0);
 const playable=l=>!!(l.file||l.parts);
 function prog(l){if(!playable(l))return 0;const pr=store.get('q-'+l.id,{max:0});return Math.min(1,(pr.max||0)/total(l))}
-function renderHome(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().name+' · סיכומי שיעורים מונפשים';
+function renderGrid(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().name+' · סיכומי שיעורים מונפשים';
  $('#sems').style.display=SEM.length>1?'flex':'none';$('#sems').innerHTML=SEM.map(x=>`<button class="tab ${x.id===sem?'on':''}" style="--c:#b5a8ff" data-s="${x.id}">${x.name}</button>`).join('');
- $('#sems').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{sem=b.dataset.s;store.set('sem',sem);cur=(SEMO().courses[0]||{}).id;renderHome()});
+ $('#sems').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{sem=b.dataset.s;store.set('sem',sem);cur=(SEMO().courses[0]||{}).id;renderGrid()});
+ $('#grid').innerHTML=COURSES.map(c=>{const n=c.lessons.length,pl=c.lessons.filter(playable),p=pl.length?pl.reduce((a,l)=>a+prog(l),0)/pl.length:0;
+  return `<button class="tile" style="--c:${c.c}" data-id="${c.id}"><span class="dot"></span><b>${c.name}</b><span class="cnt"><strong>${n}</strong>${n===1?'שיעור':'שיעורים'}</span><span class="pb"><i style="width:${(p*100).toFixed(0)}%"></i></span></button>`}).join('');
+ $('#grid').querySelectorAll('.tile').forEach(b=>b.onclick=()=>{location.hash='course-'+b.dataset.id});
+ $('#grid').style.display='';$('#cview').style.display='none';$('#sems').style.display=SEM.length>1?'flex':'none'}
+function syncArrows(){const T=$('#tabs'),max=T.scrollWidth-T.clientWidth,x=Math.abs(T.scrollLeft);const over=max>2;$('#aprev').hidden=$('#anext').hidden=!over;$('#aprev').disabled=x<2;$('#anext').disabled=x>max-2}
+$('#tabs').addEventListener('scroll',syncArrows,{passive:true});window.addEventListener('resize',syncArrows);
+$('#aprev').onclick=()=>$('#tabs').scrollBy({left:$('#tabs').clientWidth*0.7,behavior:'smooth'});
+$('#anext').onclick=()=>$('#tabs').scrollBy({left:-$('#tabs').clientWidth*0.7,behavior:'smooth'});
+$('#allc').onclick=()=>{location.hash=''};
+function renderHome(){COURSES=SEMO().courses;$('#grid').style.display='none';$('#cview').style.display='';$('#sems').style.display='none';$('#semname').textContent=SEMO().name+' · סיכומי שיעורים מונפשים';
  $('#tabs').innerHTML=COURSES.map(c=>`<button class="tab ${c.id===cur?'on':''}" style="--c:${c.c}" data-id="${c.id}"><i></i>${c.name}</button>`).join('');
- $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{cur=b.dataset.id;store.set('course',cur);renderHome()});
+ $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{location.hash='course-'+b.dataset.id});
+ {const on=$('#tabs .tab.on');if(on)on.scrollIntoView({inline:'nearest',block:'nearest'});requestAnimationFrame(syncArrows)}
  const c=COURSES.find(x=>x.id===cur)||COURSES[0];document.documentElement.style.setProperty('--c',c.c);
  const items=c.lessons.map(l=>{const p=prog(l),ok=playable(l),nc=chaps(l).length;const sub=l.sub||[l.date,ok&&fmt(total(l))+' דק׳',nc>1&&nc+' פרקים'].filter(Boolean).join(' · ');
   const th=l.poster?`<div class="thumb"><img src="${l.poster}" alt="">${ok?`<em>${fmt(total(l))}</em>`:''}<div class="bar" style="width:${(p*100).toFixed(0)}%"></div></div>`:`<div class="thumb" style="display:flex;align-items:center;justify-content:center;background:var(--panel2);font-size:30px">▶</div>`;
@@ -95,7 +123,7 @@ function renderHome(){COURSES=SEMO().courses;$('#semname').textContent=SEMO().na
 const v=$('#v');let L=null,SG=[],K=-1,CH=[],rate=store.get('rate',1),pending=null;
 const gt=()=>K<0?0:SG[K].s+(v.currentTime||0);
 function openLesson(id){let c,l;for(const cc of SEM.flatMap(x=>x.courses)){const f=cc.lessons.find(x=>x.id===id);if(f){c=cc;l=f}}if(!l||!playable(l)){showHome();return}
- L=l;SG=segs(l);CH=chaps(l);K=-1;document.documentElement.style.setProperty('--c',c.c);$('#home').style.display='none';$('#player').style.display='block';
+ cur=c.id;L=l;SG=segs(l);CH=chaps(l);K=-1;document.documentElement.style.setProperty('--c',c.c);$('#home').style.display='none';$('#player').style.display='block';
  $('#pt').textContent=l.n+' · '+l.title;$('#ps').textContent=c.name+(l.date?' · '+l.date:'')+' · '+fmt(total(l))+' דק׳';
  $('#links').innerHTML=(l.links||[]).map(([t,u])=>`<a href="${u}" target="_blank" rel="noopener">📄 ${t}</a>`).join('');
  v.poster=l.poster||'';const pr=store.get('q-'+l.id,{pos:0});const pos=(pr.pos>3&&pr.pos<total(l)-5)?pr.pos:0;seekTo(pos,false);renderChap();window.scrollTo(0,0)}
@@ -112,8 +140,9 @@ let lastSave=0,lastA=-1;v.ontimeupdate=()=>{if(!L||K<0)return;const a=activeChap
 v.onended=()=>{if(!L)return;if(K<SG.length-1){seekTo(SG[K+1].s,true);return}const pr=store.get('q-'+L.id,{});pr.pos=0;pr.max=total(L);store.set('q-'+L.id,pr);renderChap()};
 [1,1.25,1.5,1.75].forEach(r=>{const b=document.createElement('button');b.dir='ltr';b.textContent=r+'×';b.onclick=()=>{rate=r;v.playbackRate=r;store.set('rate',r);mark()};$('#speed').appendChild(b)});
 function mark(){[...$('#speed').querySelectorAll('button')].forEach(b=>b.classList.toggle('on',parseFloat(b.textContent)===rate))}mark();
-function showHome(){v.pause();L=null;$('#player').style.display='none';$('#home').style.display='block';renderHome()}
-$('#back').onclick=()=>{location.hash='';showHome()};
-function route(){const h=location.hash.slice(1);if(h)openLesson(h);else showHome()}
+function showHome(){v.pause();L=null;$('#player').style.display='none';$('#home').style.display='block';renderGrid()}
+function showCourse(id){v.pause();L=null;if(!COURSES.find(c=>c.id===id)){const s2=SEM.find(x=>x.courses.some(c=>c.id===id));if(!s2){location.hash='';return}sem=s2.id;store.set('sem',sem)}cur=id;store.set('course',cur);$('#player').style.display='none';$('#home').style.display='block';renderHome()}
+$('#back').onclick=()=>{location.hash='course-'+cur};
+function route(){const h=location.hash.slice(1);if(h.startsWith('course-'))showCourse(h.slice(7));else if(h)openLesson(h);else showHome()}
 window.addEventListener('hashchange',route);route();
 </script></body></html>
